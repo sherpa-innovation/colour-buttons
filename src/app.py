@@ -97,8 +97,11 @@ def json_response(start_response: StartResponse, status: str, payload: dict) -> 
 
 
 def read_json_body(environ: dict) -> dict | None:
-    """The request's JSON body as a dict, or `None` if it is missing or not a JSON object."""
-    length = int(environ.get("CONTENT_LENGTH") or 0)
+    """The request's JSON body as a dict, or `None` if it is missing, malformed or not an object."""
+    try:
+        length = int(environ.get("CONTENT_LENGTH") or 0)
+    except ValueError:
+        return None
     raw = environ["wsgi.input"].read(length) if length > 0 else b"{}"
     try:
         parsed = json.loads(raw)

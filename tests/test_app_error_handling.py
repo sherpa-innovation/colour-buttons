@@ -48,6 +48,17 @@ def test_a_non_json_body_is_rejected_as_a_bad_request() -> None:
     assert headers.get("Content-Type", "").startswith("application/json")
 
 
+def test_a_non_numeric_content_length_is_rejected_as_a_bad_request() -> None:
+    """A Content-Length header that isn't a whole number is refused with 400, not a server error."""
+    status, headers, _ = invoke(
+        "POST",
+        "/api/colour",
+        environ_extra={"CONTENT_LENGTH": "not-a-number", "wsgi.input": io.BytesIO(b'{"colour": "red"}')},
+    )
+    assert status == "400 Bad Request"
+    assert headers.get("Content-Type", "").startswith("application/json")
+
+
 def test_write_colour_cleans_up_its_temp_file_and_reraises_on_failure(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
