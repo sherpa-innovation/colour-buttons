@@ -1,0 +1,44 @@
+# Made by SHERPA: deploys each release to Azure. A change to it is a reviewed change like any other.
+name: deploy
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  id-token: write
+  contents: read
+concurrency:
+  group: production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.webapp-url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sign in to Azure (no password: Azure trusts this environment)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Make the web app the first time
+        env:
+          GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          PLAN: ${{ vars.AZURE_APP_SERVICE_PLAN }}
+          APP: ${{ vars.AZURE_WEBAPP_NAME }}
+        run: |
+          if ! az webapp show -g "$GROUP" -n "$APP" >/dev/null 2>&1; then
+            az webapp create -g "$GROUP" -p "$PLAN" -n "$APP" --runtime "PYTHON:3.13" --output none
+          fi
+          az webapp config set -g "$GROUP" -n "$APP" --output none \
+            --startup-file "gunicorn --bind=0.0.0.0 --timeout 600 --chdir src app:app"
+          az webapp config appsettings set -g "$GROUP" -n "$APP" --output none \
+            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true DATA_DIR=/home/data
+      - name: Deploy this release
+        id: deploy
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
+          package: .
