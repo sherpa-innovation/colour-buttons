@@ -174,3 +174,41 @@ def test_a_missing_colour_field_is_rejected_and_leaves_colour_unchanged_ac6() ->
         assert allowed in text
     _, _, body = request("GET", "/api/colour")
     assert json.loads(body) == {"colour": "red"}
+
+
+def test_a_non_numeric_content_length_is_rejected_and_leaves_colour_unchanged_ac6() -> None:
+    """A malformed Content-Length header is refused like any other bad request, not a server error."""
+    request("POST", "/api/colour", {"colour": "red"})
+    status, headers, _ = invoke(
+        app, "POST", "/api/colour", environ_extra={"CONTENT_LENGTH": "not-a-number"}
+    )
+    assert status == "400 Bad Request"
+    assert headers.get("Content-Type", "").startswith("application/json")
+    _, _, body = request("GET", "/api/colour")
+    assert json.loads(body) == {"colour": "red"}
+
+
+def test_a_post_with_no_body_is_rejected_and_leaves_colour_unchanged_ac6() -> None:
+    """A POST that carries no body at all (no Content-Length) is refused, not treated as valid."""
+    request("POST", "/api/colour", {"colour": "red"})
+    status, headers, _ = invoke(app, "POST", "/api/colour")
+    assert status == "400 Bad Request"
+    assert headers.get("Content-Type", "").startswith("application/json")
+    _, _, body = request("GET", "/api/colour")
+    assert json.loads(body) == {"colour": "red"}
+
+
+def test_a_non_json_body_is_rejected_and_leaves_colour_unchanged_ac6() -> None:
+    """A body that isn't valid JSON is refused the same way, and the shared colour is unchanged."""
+    request("POST", "/api/colour", {"colour": "red"})
+    garbage = b"not json"
+    status, headers, _ = invoke(
+        app,
+        "POST",
+        "/api/colour",
+        environ_extra={"CONTENT_LENGTH": str(len(garbage)), "wsgi.input": io.BytesIO(garbage)},
+    )
+    assert status == "400 Bad Request"
+    assert headers.get("Content-Type", "").startswith("application/json")
+    _, _, body = request("GET", "/api/colour")
+    assert json.loads(body) == {"colour": "red"}
