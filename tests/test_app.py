@@ -23,7 +23,13 @@ def call(path: str) -> tuple[str, dict[str, str], str]:
     return said["status"], said["headers"], body
 
 
-def invoke(target: object, method: str, path: str, data: dict | None = None) -> tuple[str, dict, str]:
+def invoke(
+    target: object,
+    method: str,
+    path: str,
+    data: dict | None = None,
+    environ_extra: dict[str, str] | None = None,
+) -> tuple[str, dict, str]:
     """The answer a WSGI callable `target` gives to a request, with an optional JSON body."""
     said: dict = {}
 
@@ -36,6 +42,8 @@ def invoke(target: object, method: str, path: str, data: dict | None = None) -> 
         environ["wsgi.input"] = io.BytesIO(body_bytes)
         environ["CONTENT_LENGTH"] = str(len(body_bytes))
         environ["CONTENT_TYPE"] = "application/json"
+    if environ_extra:
+        environ.update(environ_extra)
     body = b"".join(target(environ, start_response)).decode()
     return said["status"], said["headers"], body
 
@@ -83,11 +91,24 @@ def test_default_colour_is_white_ac1() -> None:
 def test_clicking_a_button_changes_the_colour_immediately_ac2(colour: str) -> None:
     """Posting one of the four colours is accepted and is reflected immediately by the API."""
     status, _, body = request("POST", "/api/colour", {"colour": colour})
-    assert status.startswith("2")
+    assert status == "200 OK"
     assert json.loads(body)["colour"] == colour
     status, _, body = request("GET", "/api/colour")
     assert status == "200 OK"
     assert json.loads(body) == {"colour": colour}
+
+
+def test_home_page_offers_the_four_buttons_wired_to_the_api_ac2() -> None:
+    """The home page offers one button per colour, each wired to call POST /api/colour."""
+    _, _, body = call("/")
+    normalized = body.lower()
+    assert "/api/colour" in normalized
+    assert "post" in normalized
+    labels = [
+        match.group(1).strip().lower()
+        for match in re.finditer(r"<button[^>]*>([^<]*)</button>", body, re.IGNORECASE)
+    ]
+    assert {"red", "green", "blue", "yellow"} <= set(labels)
 
 
 def test_reloading_the_page_keeps_the_clicked_colour_ac3() -> None:
@@ -99,10 +120,22 @@ def test_reloading_the_page_keeps_the_clicked_colour_ac3() -> None:
 
 
 def test_a_different_browser_sees_the_same_shared_colour_ac4() -> None:
-    """A later, independent request with no cookies or session sees the colour set earlier."""
-    _, first_headers, _ = request("POST", "/api/colour", {"colour": "yellow"})
+    """A request from one client, and a later request from a different client, see the same colour."""
+    status, first_headers, _ = invoke(
+        app,
+        "POST",
+        "/api/colour",
+        {"colour": "yellow"},
+        environ_extra={"REMOTE_ADDR": "10.0.0.1", "HTTP_COOKIE": "session=browser-one"},
+    )
+    assert status == "200 OK"
     assert "Set-Cookie" not in first_headers
-    status, second_headers, body = request("GET", "/api/colour")
+    status, second_headers, body = invoke(
+        app,
+        "GET",
+        "/api/colour",
+        environ_extra={"REMOTE_ADDR": "203.0.113.77", "HTTP_COOKIE": "session=browser-two"},
+    )
     assert status == "200 OK"
     assert "Set-Cookie" not in second_headers
     assert json.loads(body) == {"colour": "yellow"}
@@ -133,7 +166,11 @@ def test_an_invalid_colour_is_rejected_and_lists_the_allowed_ones_ac6() -> None:
 def test_a_missing_colour_field_is_rejected_and_leaves_colour_unchanged_ac6() -> None:
     """Posting without a colour field is refused the same way, and the shared colour is unchanged."""
     request("POST", "/api/colour", {"colour": "red"})
-    status, _, _ = request("POST", "/api/colour", {})
+    status, headers, body = request("POST", "/api/colour", {})
     assert status.startswith("4")
+    assert headers.get("Content-Type", "").startswith("application/json")
+    text = body.lower()
+    for allowed in ("red", "green", "blue", "yellow"):
+        assert allowed in text
     _, _, body = request("GET", "/api/colour")
     assert json.loads(body) == {"colour": "red"}
