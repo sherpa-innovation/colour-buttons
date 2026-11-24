@@ -14,7 +14,9 @@ the rest are checked by the reviewers.
 
 ## Layout
 - Code lives in `src/` as plain modules; `src/app.py` holds the WSGI entry point `app`.
-- Tests live in `tests/test_<module>.py`, one file per module.
+- Tests live in `tests/test_<module>.py`, one file per module; once a module's test file holds approved,
+  protected tests, add further coverage for it in another `tests/test_<module>_<topic>.py` file rather than
+  editing the protected one [cite: tests/test_app_error_handling.py].
 - Data the app keeps goes under the folder named by the `DATA_DIR` environment variable (default `./data`); never
   next to the code.
 
