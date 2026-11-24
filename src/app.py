@@ -47,10 +47,11 @@ def write_colour(colour: str) -> None:
         os.replace(temp_path, directory / COLOUR_FILE_NAME)
 
 
-def page(title: str, body: str) -> bytes:
-    """A whole HTML page around `body` (already escaped)."""
+def page(title: str, body: str, body_style: str = "") -> bytes:
+    """A whole HTML page around `body` (already escaped), with `body_style` on the `<body>` tag."""
+    style_attr = f' style="{body_style}"' if body_style else ""
     return (f"<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>{html.escape(title)}</title>"
-            f"</head><body>{body}</body></html>").encode()
+            f"</head><body{style_attr}>{body}</body></html>").encode()
 
 
 def home_page(colour: str) -> bytes:
@@ -75,8 +76,8 @@ def home_page(colour: str) -> bytes:
         "});"
         "</script>"
     )
-    body = f'<div style="{style}"><h1>Hello</h1><p>Built with SHERPA.</p>{buttons}</div>{script}'
-    return page("Hello", body)
+    body = f"<h1>Hello</h1><p>Built with SHERPA.</p>{buttons}{script}"
+    return page("Hello", body, body_style=style)
 
 
 def json_response(start_response: StartResponse, status: str, payload: dict) -> Iterable[bytes]:
@@ -90,7 +91,10 @@ def read_json_body(environ: dict) -> dict | None:
     """The request's JSON body as a dict, or `None` if it is missing or not a JSON object."""
     length = int(environ.get("CONTENT_LENGTH") or 0)
     raw = environ["wsgi.input"].read(length) if length > 0 else b"{}"
-    parsed = json.loads(raw)
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
     return parsed if isinstance(parsed, dict) else None
 
 
