@@ -5,7 +5,7 @@ from __future__ import annotations
 import html
 import json
 import os
-import threading
+import tempfile
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
@@ -14,8 +14,6 @@ StartResponse = Callable[[str, list[tuple[str, str]]], object]
 ALLOWED_COLOURS = ("red", "green", "blue", "yellow")
 DEFAULT_COLOUR = "white"
 COLOUR_FILE_NAME = "colour.txt"
-
-_colour_lock = threading.Lock()
 
 
 def data_dir() -> Path:
@@ -38,13 +36,24 @@ def read_colour() -> str:
 
 
 def write_colour(colour: str) -> None:
-    """Durably store `colour` as the new shared colour (atomic, same-filesystem rename)."""
-    with _colour_lock:
-        directory = data_dir()
-        directory.mkdir(parents=True, exist_ok=True)
-        temp_path = directory / f".{COLOUR_FILE_NAME}.tmp"
-        temp_path.write_text(colour, encoding="utf-8")
-        os.replace(temp_path, directory / COLOUR_FILE_NAME)
+    """Durably store `colour` as the new shared colour (atomic, same-filesystem rename).
+
+    Each call writes to its own uniquely-named temp file (via `tempfile.mkstemp`, which picks a
+    name atomically) and then `os.replace`s it onto the real file. `os.replace` is an atomic
+    rename on the same filesystem, so concurrent writers never corrupt or interleave a read, and
+    the last rename to complete is what subsequent readers see (last-write-wins). No lock or other
+    in-process state is needed: the file is the only thing shared between calls.
+    """
+    directory = data_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    descriptor, temp_name = tempfile.mkstemp(dir=directory, prefix=f".{COLOUR_FILE_NAME}.")
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as temp_file:
+            temp_file.write(colour)
+        os.replace(temp_name, directory / COLOUR_FILE_NAME)
+    except OSError:
+        os.unlink(temp_name)
+        raise
 
 
 def page(title: str, body: str, body_style: str = "") -> bytes:

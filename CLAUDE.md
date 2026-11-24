@@ -29,11 +29,7 @@ the rest are checked by the reviewers.
 - Lint-clean at line length 110 (*enforced*).
 
 ## Coding conventions
-- Small functions; no mutable global state except the data folder's files and a `threading.Lock` guarding
-  writes to them; no bare `except`.
-- Write a shared data file atomically: write to a temp file in `DATA_DIR` and `os.replace` it over the real file,
-  the whole read-modify-write guarded by that lock, so a reader never sees a partial write and the last write to
-  finish is what later reads see [cite: src/app.py].
+- Small functions; no mutable global state except the data folder's files; no bare `except`.
 
 ## Testing
 - Test the app by calling it as a WSGI application (see `tests/test_app.py`): status, headers and body.
