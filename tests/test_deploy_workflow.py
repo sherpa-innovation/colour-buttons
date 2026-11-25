@@ -99,15 +99,17 @@ def test_deploy_workflow_parses_as_yaml_ac1() -> None:
 
 
 def test_deploy_workflow_triggers_on_v_tags_only_ac1() -> None:
-    """AC-1: the workflow still runs on push of v* tags only, no other trigger."""
+    """AC-1: once the file parses as YAML, it still runs on push of v* tags only, no other trigger."""
     text = read_workflow()
+    assert ambiguous_plain_scalar_lines(text) == [], "file must parse as YAML before this check applies"
     on_section = text.split("on:\n", 1)[1].split("permissions:", 1)[0]
     assert on_section.strip("\n") == '  push:\n    tags: ["v*"]'
 
 
 def test_deploy_workflow_actions_and_order_ac2() -> None:
-    """AC-2: the deploy job still uses checkout@v4, azure/login@v2 and webapps-deploy@v3, in that order."""
+    """AC-2: once the file parses as YAML, its job still uses checkout@v4, login@v2, webapps-deploy@v3."""
     text = read_workflow()
+    assert ambiguous_plain_scalar_lines(text) == [], "file must parse as YAML before this check applies"
     assert "      - uses: actions/checkout@v4" in text
     checkout_at = text.index("actions/checkout@v4")
     login_at = text.index("azure/login@v2")
@@ -116,8 +118,9 @@ def test_deploy_workflow_actions_and_order_ac2() -> None:
 
 
 def test_deploy_workflow_login_settings_unchanged_ac2() -> None:
-    """AC-2: the Azure login step keeps its settings (client-id, tenant-id, subscription-id)."""
+    """AC-2: once the file parses as YAML, the login step keeps client-id, tenant-id, subscription-id."""
     text = read_workflow()
+    assert ambiguous_plain_scalar_lines(text) == [], "file must parse as YAML before this check applies"
     expected = (
         "        uses: azure/login@v2\n"
         "        with:\n"
@@ -129,8 +132,9 @@ def test_deploy_workflow_login_settings_unchanged_ac2() -> None:
 
 
 def test_deploy_workflow_webapps_deploy_settings_unchanged_ac2() -> None:
-    """AC-2: the webapps-deploy step keeps its id, app-name and package settings."""
+    """AC-2: once the file parses as YAML, the webapps-deploy step keeps id, app-name and package."""
     text = read_workflow()
+    assert ambiguous_plain_scalar_lines(text) == [], "file must parse as YAML before this check applies"
     expected = (
         "      - name: Deploy this release\n"
         "        id: deploy\n"
