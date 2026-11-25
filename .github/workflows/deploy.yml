@@ -17,7 +17,7 @@ jobs:
       url: ${{ steps.deploy.outputs.webapp-url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Sign in to Azure (no password: Azure trusts this environment)
+      - name: Sign in to Azure with no password (Azure trusts this environment)
         uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
